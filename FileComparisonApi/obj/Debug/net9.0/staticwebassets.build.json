@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "0wAwZVfaO3awytDeP9Q51hA7MxukLagAJ2JM+c/rvfM=",
+  "Source": "FileComparisonApi",
+  "BasePath": "_content/FileComparisonApi",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
