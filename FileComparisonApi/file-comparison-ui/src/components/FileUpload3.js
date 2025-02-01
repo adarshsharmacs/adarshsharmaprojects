@@ -1,126 +1,138 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState, useRef } from 'react';
+import { diffWords } from "diff";
 
-function FileUpload2() {
-    const [file1, setFile1] = useState(null);
-    const [file2, setFile2] = useState(null);
-    const [fileData1, setFileData1] = useState(""); // For paste data of File 1
-    const [fileData2, setFileData2] = useState(""); // For paste data of File 2
-    const [differences, setDifferences] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
 
-    /**
-     * Handles file selection, reads its content, and populates the textarea.
-     * @param {Event} e - The file input change event
-     * @param {Function} setFileData - State setter function for textarea data
-     * @param {Function} setFile - State setter function for file object
-     */
+const FileUpload3 = () => {
+    const [text1, setText1] = useState('');
+    const [text2, setText2] = useState('');
+    const [loading1, setLoading1] = useState(false);
+    const [loading2, setLoading2] = useState(false);
+    const [progress1, setProgress1] = useState(0);
+    const [progress2, setProgress2] = useState(0);
+    const [highlightedText1, setHighlightedText1] = useState("");
+    const [highlightedText2, setHighlightedText2] = useState("");
+    const abortController = useRef(null);
 
-     // Function to handle file upload and populate the textarea
-     const handleFileChange = (e, setFileData, setFile) =>
-     {
-        const file = e.target.files[0];
-        setFile(file);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            setFileData(reader.result);
-        };
-        reader.readAsText(file);
-     }
-
-
-    const handleUpload = async () => {
-        if ((file1 && file2) || (fileData1 && fileData2)) {
-            setLoading(true);
-            setError(null);
-            setDifferences([]); // Reset before new comparison
-
-            const formData = new FormData();
-            if (file1 && file2) {
-                formData.append("file1", file1);
-                formData.append("file2", file2);
-            } else {
-                formData.append("file1", new Blob([fileData1], { type: 'text/plain' }));
-                formData.append("file2", new Blob([fileData2], { type: 'text/plain' }));
-            }
-
-            try {
-                const response = await axios.post("http://localhost:5016/api/file/compare", formData, {
-                    headers: { "Content-Type": "multipart/form-data" }
-                });
-
-                console.log("API Response:", response.data);
-
-                if (response.data && Array.isArray(response.data.differences)) {
-                    setDifferences(response.data.differences);
-                } else {
-                    console.error("Unexpected response format:", response.data);
-                    setDifferences([]); // Default to empty array if response format is incorrect
-                }
-            } catch (err) {
-                console.error("Error comparing files:", err);
-                setError("Error comparing files. Please try again.");
-            } finally {
-                setLoading(false);
-            }
-        } else {
-            setError("Please select or paste both files.");
+    const readFileInChunks = async (file, setText, setLoading, setProgress) => {
+        setLoading(true);
+        setProgress(0);
+        
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        let content = '';
+        
+        for (let chunk = 0; chunk < totalChunks; chunk++) {
+            const start = chunk * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const blob = file.slice(start, end);
+            
+            const text = await readChunk(blob);
+            content += text;
+            
+            const progress = Math.round((chunk + 1) / totalChunks * 100);
+            setProgress(progress);
         }
+        
+        setText(content);
+        setLoading(false);
+    };
+
+    const readChunk = (blob) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsText(blob);
+        });
+    };
+
+    const handleFileUpload = async (e, setText, setLoading, setProgress) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        try {
+            await readFileInChunks(file, setText, setLoading, setProgress);
+        } catch (error) {
+            console.error('Error reading file:', error);
+            setLoading(false);
+        }
+    };
+
+    const compareText = () => {
+        if (!text1 || !text2) return;
+
+        const diff1 = diffWords(text1, text2);
+        const diff2 = diffWords(text2, text1);
+
+        const formatDiff = (diffArray) =>
+            diffArray
+                .map((part) => {
+                    if (part.added) return `<span style="background-color:#ffb3b3">${part.value}</span>`;
+                    if (part.removed) return `<span style="background-color:#b3e6ff">${part.value}</span>`;
+                    return `<span>${part.value}</span>`;
+                })
+                .join("");
+
+        setHighlightedText1(formatDiff(diff1));
+        setHighlightedText2(formatDiff(diff2));
     };
 
     return (
         <div>
             <h2>File Comparison Tool</h2>
-            
-            {/* File Upload Section */}
-            <div>
-                <h3>Upload Files</h3>
-                <input type="file" onChange={(e) => handleFileChange(e, setFileData1, setFile1)} />
-                <input type="file" onChange={(e) => handleFileChange(e, setFileData2, setFile2)} />
-            </div>
 
-            {/* Paste File Data Section */}
-            <div>
-                <h3>Or Paste File Data</h3>
-                <textarea 
-                    rows="10" 
-                    cols="50" 
-                    placeholder="Paste content of File 1" 
-                    value={fileData1} 
-                    onChange={(e) => setFileData1(e.target.value)} 
-                />
-                <textarea 
-                    rows="10" 
-                    cols="50" 
-                    placeholder="Paste content of File 2" 
-                    value={fileData2} 
-                    onChange={(e) => setFileData2(e.target.value)} 
-                />
-            </div>
-
-            {/* Compare Button */}
-            <button onClick={handleUpload} disabled={loading}>
-                {loading ? "Comparing files..." : "Compare Files"}
-            </button>
-
-            {/* Show errors or results */}
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-
-            {Array.isArray(differences) && differences.length > 0 ? (
+            <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
                 <div>
-                    <h3>Differences Found:</h3>
-                    <ul>
-                        {differences.map((diff, index) => (
-                            <li key={index}>{diff}</li>
-                        ))}
-                    </ul>
+                    <input 
+                        type="file" 
+                        onChange={(e) => handleFileUpload(e, setText1, setLoading1, setProgress1)} 
+                    />
+                    {loading1 && <progress value={progress1} max="100" />}
                 </div>
-            ) : (
-                <p>No differences found or comparison has not yet been made.</p>
-            )}
+                <div>
+                    <input 
+                        type="file" 
+                        onChange={(e) => handleFileUpload(e, setText2, setLoading2, setProgress2)} 
+                    />
+                    {loading2 && <progress value={progress2} max="100" />}
+                </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "20px" }}>
+                <div style={{ position: "relative", width: "50%" }}>
+                    <h3>File 1 / Text 1 {loading1 && `(${progress1}%)`}</h3>
+                    <textarea
+                        rows="10"
+                        cols="50"
+                        value={text1}
+                        onChange={(e) => setText1(e.target.value)}
+                        placeholder="Paste or upload text"
+                        style={{ width: "100%", height: "200px" }}
+                    />
+                    <div
+                        dangerouslySetInnerHTML={{ __html: highlightedText1 }}
+                        style={{ whiteSpace: "pre-wrap", marginTop: "10px", fontFamily: "monospace" }}
+                    />
+                </div>
+                <div style={{ position: "relative", width: "50%" }}>
+                    <h3>File 2 / Text 2 {loading2 && `(${progress2}%)`}</h3>
+                    <textarea
+                        rows="10"
+                        cols="50"
+                        value={text2}
+                        onChange={(e) => setText2(e.target.value)}
+                        placeholder="Paste or upload text"
+                        style={{ width: "100%", height: "200px" }}
+                    />
+                    <div
+                        dangerouslySetInnerHTML={{ __html: highlightedText2 }}
+                        style={{ whiteSpace: "pre-wrap", marginTop: "10px", fontFamily: "monospace" }}
+                    />
+                </div>
+            </div>
+
+            <button onClick={compareText} style={{ marginTop: "20px" }}>Compare Files</button>
         </div>
     );
-}
+};
 
-export default FileUpload2;
+export default FileUpload3;

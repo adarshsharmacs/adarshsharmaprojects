@@ -1,11 +1,11 @@
 import React from "react";
-import FileUpload2 from "./components/FileUpload2";
+import FileUpload3 from "./components/FileUpload3";
 
 function App() {
     return (
         <div>
             <h1 style={{ textAlign: "center" }}>File Comparison App</h1>
-            <FileUpload2 />
+            <FileUpload3 />
         </div>
     );
 }
