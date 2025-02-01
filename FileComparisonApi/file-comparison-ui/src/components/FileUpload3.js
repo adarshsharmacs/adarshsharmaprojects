@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { diffWords } from "diff";
+import debounce from 'lodash.debounce';
 
 const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+const MAX_RETRIES = 3;
 
 const FileUpload3 = () => {
     const [text1, setText1] = useState('');
@@ -14,33 +16,50 @@ const FileUpload3 = () => {
     const [highlightedText2, setHighlightedText2] = useState("");
     const abortController = useRef(null);
 
+    const debouncedSetText1 = useCallback(debounce(setText1, 300), []);
+    const debouncedSetText2 = useCallback(debounce(setText2, 300), []);
+
     const readFileInChunks = async (file, setText, setLoading, setProgress) => {
         setLoading(true);
         setProgress(0);
-        
+
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
         let content = '';
-        
+
         for (let chunk = 0; chunk < totalChunks; chunk++) {
             const start = chunk * CHUNK_SIZE;
             const end = Math.min(start + CHUNK_SIZE, file.size);
             const blob = file.slice(start, end);
-            
-            const text = await readChunk(blob);
-            content += text;
-            
+
+            let retries = 0;
+            while (retries < MAX_RETRIES) {
+                try {
+                    const text = await readChunk(blob);
+                    content += text;
+                    setText(prevText => prevText + text); // Incrementally update the textarea
+                    break; // Exit retry loop on success
+                } catch (error) {
+                    retries++;
+                    if (retries === MAX_RETRIES) {
+                        console.error('Error reading chunk:', error);
+                        setLoading(false);
+                        return;
+                    }
+                }
+            }
+
             const progress = Math.round((chunk + 1) / totalChunks * 100);
             setProgress(progress);
         }
-        
-        setText(content);
+
         setLoading(false);
     };
 
     const readChunk = (blob) => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(e);
             reader.readAsText(blob);
         });
     };
@@ -48,7 +67,7 @@ const FileUpload3 = () => {
     const handleFileUpload = async (e, setText, setLoading, setProgress) => {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         try {
             await readFileInChunks(file, setText, setLoading, setProgress);
         } catch (error) {
@@ -63,14 +82,12 @@ const FileUpload3 = () => {
         const diff1 = diffWords(text1, text2);
         const diff2 = diffWords(text2, text1);
 
-        const formatDiff = (diffArray) =>
-            diffArray
-                .map((part) => {
-                    if (part.added) return `<span style="background-color:#ffb3b3">${part.value}</span>`;
-                    if (part.removed) return `<span style="background-color:#b3e6ff">${part.value}</span>`;
-                    return `<span>${part.value}</span>`;
-                })
-                .join("");
+        const formatDiff = (diffArray) => {
+            return diffArray.map((part) => {
+                const color = part.added ? 'green' : part.removed ? 'red' : 'black';
+                return `<span style="color: ${color}">${part.value}</span>`;
+            }).join(""); // Join the parts to form a single string
+        };
 
         setHighlightedText1(formatDiff(diff1));
         setHighlightedText2(formatDiff(diff2));
@@ -84,14 +101,14 @@ const FileUpload3 = () => {
                 <div>
                     <input 
                         type="file" 
-                        onChange={(e) => handleFileUpload(e, setText1, setLoading1, setProgress1)} 
+                        onChange={(e) => handleFileUpload(e, debouncedSetText1, setLoading1, setProgress1)} 
                     />
                     {loading1 && <progress value={progress1} max="100" />}
                 </div>
                 <div>
                     <input 
                         type="file" 
-                        onChange={(e) => handleFileUpload(e, setText2, setLoading2, setProgress2)} 
+                        onChange={(e) => handleFileUpload(e, debouncedSetText2, setLoading2, setProgress2)} 
                     />
                     {loading2 && <progress value={progress2} max="100" />}
                 </div>

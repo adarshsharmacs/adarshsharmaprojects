@@ -1,0 +1,78 @@
+.container {
+    text-align: center;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+}
+
+.dark-mode {
+    background-color: #1e1e1e;
+    color: white;
+}
+
+.file-inputs {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.textareas {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.textareas textarea {
+    width: 90%;
+    height: 150px;
+    padding: 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+.compare-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 20px;
+    font-size: 16px;
+}
+
+.compare-btn:hover {
+    background-color: #0056b3;
+}
+
+.highlighted-text {
+    white-space: pre-wrap;
+    font-family: monospace;
+    text-align: left;
+    padding: 10px;
+}
+
+.loader {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.toggle-mode {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
